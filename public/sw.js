@@ -1,5 +1,5 @@
-const CACHE = "zhenti-shell-v5";
-const SHELL = ["./", "./index.html", "./css/app.css?v=5", "./js/quiz.js?v=5", "./manifest.webmanifest"];
+const CACHE = "zhenti-shell-v6";
+const SHELL = ["./", "./index.html", "./css/app.css?v=6", "./js/quiz.js?v=6", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)).then(() => self.skipWaiting()));

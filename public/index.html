@@ -10,7 +10,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>真题前30 听力刷题</title>
   <link rel="manifest" href="./manifest.webmanifest" />
-  <link rel="stylesheet" href="./css/app.css?v=5" />
+  <link rel="stylesheet" href="./css/app.css?v=6" />
   <link rel="icon" href="./icons/icon.svg" />
   <link rel="apple-touch-icon" href="./icons/icon.svg" />
 </head>
@@ -19,7 +19,7 @@
   <div id="toast" class="toast"></div>
   <script>
   (function () {
-    var VER = "5";
+    var VER = "6";
     if (localStorage.getItem("zhenti-ui-ver") === VER) return;
     localStorage.setItem("zhenti-ui-ver", VER);
     var done = function () {
@@ -36,6 +36,6 @@
     ]).then(done).catch(done);
   })();
   </script>
-  <script src="./js/quiz.js?v=5"></script>
+  <script src="./js/quiz.js?v=6"></script>
 </body>
 </html>

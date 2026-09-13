@@ -267,12 +267,39 @@ function bindPlayer(src) {
   sync();
 }
 
+function questionHaystack(q, extra = "") {
+  if (!q) return String(extra || "").toLowerCase();
+  const opts = q.options ? Object.values(q.options).join(" ") : "";
+  return `${q.stem || ""} ${q.answer || ""} ${opts} ${extra || ""}`.toLowerCase();
+}
+
+function vocabFor(sec, q) {
+  const list = sec.vocab || [];
+  if (!list.length) return [];
+  if (!q) return list;
+  const hay = questionHaystack(q);
+  return list.filter((v) => {
+    const w = String(v.word || "").toLowerCase().replace(/\s+/g, " ").trim();
+    if (w.length < 3) return false;
+    return hay.includes(w);
+  });
+}
+
+function renderVocab(list) {
+  if (!list.length) return "";
+  return `<h4>生词</h4><div class="vocab">${list.map((v) => `<div><b>${v.word} ${v.pos || ""}</b><span>${v.meaning || ""}</span></div>`).join("")}</div>`;
+}
+
 function revealBox(sec, q) {
   const bits = [];
   if (q?.stem) bits.push(`<h4>题干 / 听到的句子</h4><p>${q.stem}</p>`);
   if (sec.transcript) bits.push(`<h4>原文</h4><p>${sec.transcript}</p>`);
-  if (sec.vocab?.length) {
-    bits.push(`<h4>生词</h4><div class="vocab">${sec.vocab.map((v) => `<div><b>${v.word} ${v.pos}</b><span>${v.meaning}</span></div>`).join("")}</div>`);
+  const all = sec.vocab || [];
+  const hits = vocabFor(sec, q);
+  if (q) {
+    if (hits.length) bits.push(renderVocab(hits));
+  } else if (all.length) {
+    bits.push(`<details class="vocab-more"><summary>本节生词（${all.length}）</summary><div class="vocab">${all.map((v) => `<div><b>${v.word} ${v.pos || ""}</b><span>${v.meaning || ""}</span></div>`).join("")}</div></details>`);
   }
   return bits.length ? `<div class="reveal">${bits.join("")}</div>` : "";
 }
@@ -613,5 +640,5 @@ fetch("./data/papers.json")
   .catch(() => { $("#app").innerHTML = "<p class='empty'>题库加载失败，请用 python server.py 启动后再打开。</p>"; });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=5").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=6").catch(() => {});
 }
