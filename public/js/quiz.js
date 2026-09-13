@@ -6,14 +6,52 @@ const audioEl = new Audio();
 audioEl.preload = "auto";
 audioEl.playsInline = true;
 
+function emptyDb() {
+  return { answers: {}, results: {}, rate: 1, theme: "", sessions: [] };
+}
+
 const store = {
   key: "zhenti-quiz-v1",
   read() {
-    try { return JSON.parse(localStorage.getItem(this.key)) || { answers: {}, results: {}, rate: 1, theme: "" }; }
-    catch { return { answers: {}, results: {}, rate: 1, theme: "" }; }
+    try {
+      const data = Object.assign(emptyDb(), JSON.parse(localStorage.getItem(this.key)) || {});
+      if (!Array.isArray(data.sessions)) data.sessions = [];
+      return data;
+    } catch {
+      return emptyDb();
+    }
   },
   write(data) { localStorage.setItem(this.key, JSON.stringify(data)); },
 };
+
+function fmtWhen(ts) {
+  const d = new Date(ts);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getMonth() + 1}/${d.getDate()} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function sectionScore(paper, sec, db = store.read()) {
+  let right = 0;
+  for (const q of sec.questions) {
+    if (db.results[qid(paper.id, sec.id, q.n)] === true) right += 1;
+  }
+  return { right, total: sec.questions.length };
+}
+
+function logSession(paper, sec) {
+  const db = store.read();
+  const { right, total } = sectionScore(paper, sec, db);
+  db.sessions.unshift({
+    t: Date.now(),
+    paperId: paper.id,
+    title: paper.title,
+    section: sec.title,
+    right,
+    total,
+  });
+  if (db.sessions.length > 400) db.sessions.length = 400;
+  store.write(db);
+}
 
 function qid(paperId, secId, n) { return `${paperId}|${secId}|${n}`; }
 
@@ -86,18 +124,20 @@ function renderHome() {
   return `${topbar("真题前30", "听力刷题", `<button class="icon-btn" data-act="theme">${db.theme === "dark" ? "光" : "夜"}</button>`)}
     <div class="hero">
       <h2>随时拿出手机练听力</h2>
-      <p>30 套真题，对话回复 / 短对话 / 公告 / 讲座。进度保存在这台手机上。</p>
+      <p>做题进度、对错和练习记录都保存在这台手机的浏览器里。清缓存或换浏览器会丢，可到记录页导出备份。</p>
       <div class="stats">
         <div class="stat"><b>${DATA.papers.length}</b><span>套卷</span></div>
         <div class="stat"><b>${totals.done}</b><span>已做 / ${totals.total}</span></div>
         <div class="stat"><b>${totals.done ? Math.round(totals.right / totals.done * 100) : 0}%</b><span>正确率</span></div>
       </div>
-      <div class="lan" id="lanBox">同一 Wi-Fi 下用手机打开本页即可刷题。</div>
+      <div class="lan" id="lanBox">添加到主屏幕后，用同一个浏览器打开即可接着刷。</div>
     </div>
     <div class="filters">
       <button class="chip on" data-filter="all">全部</button>
       <button class="chip" data-filter="todo">未完成</button>
       <button class="chip" data-filter="wrong">有错题</button>
+      <button class="chip" data-go="#/history">练习记录</button>
+      <button class="chip" data-go="#/wrong">错题本</button>
     </div>
     <div class="grid papers">${cards}</div>`;
 }
@@ -266,6 +306,27 @@ function renderPlay(paper, secId, qIndex) {
     ${body}`;
 }
 
+function renderHistory() {
+  const db = store.read();
+  const sessions = db.sessions || [];
+  const body = sessions.length
+    ? sessions.map((s) => `<button class="card hist" data-go="#/paper/${s.paperId}">
+        <div class="grow">
+          <h3>${s.title} · ${s.section}</h3>
+          <p>${fmtWhen(s.t)} · ${s.right}/${s.total} 正确</p>
+        </div>
+        <div class="pct">${s.total ? Math.round(s.right / s.total * 100) : 0}%</div>
+      </button>`).join("")
+    : `<div class="empty">还没有练习记录。做完一段题后会出现在这里。</div>`;
+  return `${topbar("练习记录", `共 ${sessions.length} 次`)}
+    <div class="actions">
+      <button class="btn ghost" data-act="exportHist">导出备份</button>
+      <button class="btn ghost" data-act="importHist">导入备份</button>
+    </div>
+    <input id="histFile" type="file" accept="application/json" hidden />
+    <div class="grid">${body}</div>`;
+}
+
 function renderWrong(paper) {
   const items = collectWrong(paper);
   if (!items.length) {
@@ -292,6 +353,7 @@ function route() {
   if (parts[0] === "paper") html = renderPaper(paperOf(parts[1]));
   else if (parts[0] === "play") html = renderPlay(paperOf(parts[1]), decodeURIComponent(parts[2] || "all"), parts[3]);
   else if (parts[0] === "wrong") html = renderWrong(parts[1] ? paperOf(parts[1]) : null);
+  else if (parts[0] === "history") html = renderHistory();
   else html = renderHome();
   root.innerHTML = html;
 
@@ -329,6 +391,7 @@ function nextReply(paper, sec, allMode, secIndex) {
     route();
     return;
   }
+  logSession(paper, sec);
   sessionStorage.setItem("qi", "0");
   if (allMode) location.hash = `#/play/${paper.id}/all/${secIndex + 1}`;
   else location.hash = `#/paper/${paper.id}`;
@@ -402,9 +465,19 @@ document.addEventListener("click", async (e) => {
         db.results[id] = db.answers[id] === q.answer;
       }
       store.write(db);
+      logSession(paper, sec);
       const right = sec.questions.filter((q) => db.results[qid(paper.id, sec.id, q.n)]).length;
       toast(`本段 ${right}/${sec.questions.length} 正确`);
       route();
+    } else if (act.dataset.act === "exportHist") {
+      const blob = new Blob([JSON.stringify(store.read(), null, 2)], { type: "application/json" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "zhenti-history.json";
+      a.click();
+      toast("已导出备份");
+    } else if (act.dataset.act === "importHist") {
+      $("#histFile")?.click();
     } else if (act.dataset.act === "nextSec") {
       sessionStorage.setItem("qi", "0");
       if (allMode && idx + 1 < sections.length) location.hash = `#/play/${paper.id}/all/${idx + 1}`;
@@ -448,6 +521,34 @@ document.addEventListener("input", (e) => {
   if (e.target.dataset.act === "seek" && audioEl.duration) {
     audioEl.currentTime = (Number(e.target.value) / 1000) * audioEl.duration;
   }
+});
+
+document.addEventListener("change", (e) => {
+  if (e.target.id !== "histFile" || !e.target.files?.[0]) return;
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const incoming = JSON.parse(reader.result);
+      const db = store.read();
+      if (incoming.answers) Object.assign(db.answers, incoming.answers);
+      if (incoming.results) Object.assign(db.results, incoming.results);
+      if (Array.isArray(incoming.sessions)) {
+        const seen = new Set(db.sessions.map((s) => `${s.t}|${s.paperId}|${s.section}`));
+        for (const s of incoming.sessions) {
+          const key = `${s.t}|${s.paperId}|${s.section}`;
+          if (!seen.has(key)) db.sessions.push(s);
+        }
+        db.sessions.sort((a, b) => b.t - a.t);
+      }
+      store.write(db);
+      toast("已导入进度和记录");
+      route();
+    } catch {
+      toast("备份文件无效");
+    }
+  };
+  reader.readAsText(file, "utf-8");
 });
 
 window.addEventListener("hashchange", () => {
