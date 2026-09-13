@@ -1,0 +1,11 @@
+{
+  "name": "真题前30 听力刷题",
+  "short_name": "真题刷题",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f3eee4",
+  "theme_color": "#b45309",
+  "icons": [
+    { "src": "./icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

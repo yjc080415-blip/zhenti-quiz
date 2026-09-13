@@ -1,0 +1,4 @@
+__pycache__/
+_extract/
+*.pyc
+public/data/report.json
