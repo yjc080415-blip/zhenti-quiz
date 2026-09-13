@@ -53,6 +53,30 @@ function logSession(paper, sec) {
   store.write(db);
 }
 
+function clearSection(paper, sec) {
+  const db = store.read();
+  for (const q of sec.questions) {
+    const id = qid(paper.id, sec.id, q.n);
+    delete db.answers[id];
+    delete db.results[id];
+  }
+  store.write(db);
+}
+
+function findSection(paper, secId) {
+  return flattenSections(paper).find((s) => s.id === secId);
+}
+
+function redoSection(paper, sec) {
+  clearSection(paper, sec);
+  sessionStorage.setItem("qi", "0");
+  if (audioEl.src) {
+    audioEl.pause();
+    audioEl.currentTime = 0;
+  }
+  toast("已刷新，可以重做本节");
+}
+
 function qid(paperId, secId, n) { return `${paperId}|${secId}|${n}`; }
 
 function toast(msg) {
@@ -143,19 +167,25 @@ function renderHome() {
 }
 
 function renderPaper(paper) {
+  const db = store.read();
   const s = paperStats(paper);
   const mods = paper.modules.map((m) => {
     const items = m.sections.map((sec) => {
       const n = sec.questions.length;
+      const score = sectionScore(paper, sec, db);
       const audioOk = sec.kind === "reply" ? sec.questions.some((q) => q.audio) : !!sec.audio;
-      return `<button class="card sec" data-go="#/play/${paper.id}/${encodeURIComponent(sec.id)}">
-        <div class="mark">${sec.qStart}-${sec.qEnd}</div>
-        <div class="grow">
-          <h3>${m.title} · ${sec.title}</h3>
-          <p>${n} 题${audioOk ? " · 有音频" : " · 暂无音频"}</p>
-        </div>
-        <span class="tag">${sec.kind === "reply" ? "逐题" : "整段"}</span>
-      </button>`;
+      const done = Object.keys(db.answers).some((k) => k.startsWith(`${paper.id}|${sec.id}|`));
+      return `<div class="card sec-wrap">
+        <button class="sec" data-go="#/play/${paper.id}/${encodeURIComponent(sec.id)}">
+          <div class="mark">${sec.qStart}-${sec.qEnd}</div>
+          <div class="grow">
+            <h3>${m.title} · ${sec.title}</h3>
+            <p>${n} 题${audioOk ? " · 有音频" : " · 暂无音频"}${done ? ` · 上次 ${score.right}/${score.total}` : ""}</p>
+          </div>
+          <span class="tag">${sec.kind === "reply" ? "逐题" : "整段"}</span>
+        </button>
+        <button class="redo" data-act="redoSec" data-paper="${paper.id}" data-sec="${sec.id}">重做</button>
+      </div>`;
     }).join("");
     return items;
   }).join("");
@@ -285,7 +315,8 @@ function renderPlay(paper, secId, qIndex) {
     body += `<div class="actions">
       <button class="btn ghost" data-act="prevQ" ${qi === 0 ? "disabled" : ""}>上一题</button>
       <button class="btn" data-act="nextQ">${qi + 1 === sec.questions.length ? (allMode ? "下一段" : "完成本段") : "下一题"}</button>
-    </div>`;
+    </div>
+    <button class="btn ghost redo-full" data-act="redoSec">刷新重做本节</button>`;
   } else {
     const revealed = sec.questions.every((qq) => typeof db.results[qid(paper.id, sec.id, qq.n)] === "boolean");
     body += sec.questions.map((qq) => {
@@ -300,7 +331,8 @@ function renderPlay(paper, secId, qIndex) {
     body += `<div class="actions">
       <button class="btn ghost" data-go="${allMode ? `#/play/${paper.id}/all/${Math.max(idx - 1, 0)}` : `#/paper/${paper.id}`}">返回</button>
       <button class="btn" data-act="${revealed ? "nextSec" : "submitSec"}">${revealed ? (allMode && idx + 1 < sections.length ? "下一段" : "完成") : "提交本段"}</button>
-    </div>`;
+    </div>
+    <button class="btn ghost redo-full" data-act="redoSec">刷新重做本节</button>`;
   }
   return `${topbar(progressLabel, isReply ? "听完再选，选完立刻对答案" : "先听完整段，再一起提交")}
     ${body}`;
@@ -478,6 +510,19 @@ document.addEventListener("click", async (e) => {
       toast("已导出备份");
     } else if (act.dataset.act === "importHist") {
       $("#histFile")?.click();
+    } else if (act.dataset.act === "redoSec") {
+      let targetPaper = paper;
+      let targetSec = sec;
+      if (act.dataset.paper) {
+        targetPaper = paperOf(act.dataset.paper);
+        targetSec = findSection(targetPaper, act.dataset.sec);
+      }
+      if (!targetPaper || !targetSec) return;
+      if (!confirm("确定重做本节？将清空本题答案，练习记录会保留。")) return;
+      redoSection(targetPaper, targetSec);
+      const playHash = `#/play/${targetPaper.id}/${encodeURIComponent(targetSec.id)}`;
+      if (location.hash === playHash) route();
+      else location.hash = playHash;
     } else if (act.dataset.act === "nextSec") {
       sessionStorage.setItem("qi", "0");
       if (allMode && idx + 1 < sections.length) location.hash = `#/play/${paper.id}/all/${idx + 1}`;

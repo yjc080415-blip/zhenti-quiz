@@ -1,4 +1,4 @@
-const CACHE = "zhenti-shell-v2";
+const CACHE = "zhenti-shell-v3";
 const SHELL = ["./", "./index.html", "./css/app.css", "./js/quiz.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {

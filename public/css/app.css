@@ -288,3 +288,28 @@ input[type="range"] { width: 100%; accent-color: var(--accent); }
 @media (min-width: 720px) {
   .papers { grid-template-columns: 1fr 1fr; }
 }
+
+.card.sec-wrap {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px 8px 8px 4px;
+}
+.sec-wrap .sec {
+  box-shadow: none;
+  width: auto;
+  flex: 1;
+  min-width: 0;
+}
+.redo {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.redo-full { width: 100%; margin: 0 0 16px; }
