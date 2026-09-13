@@ -184,7 +184,7 @@ function renderPaper(paper) {
           </div>
           <span class="tag">${sec.kind === "reply" ? "逐题" : "整段"}</span>
         </button>
-        <button class="redo" data-act="redoSec" data-paper="${paper.id}" data-sec="${sec.id}">重做</button>
+        <button class="redo" data-act="redoSec" data-paper="${paper.id}" data-sec="${sec.id}">刷新重做本节</button>
       </div>`;
     }).join("");
     return items;
@@ -613,5 +613,5 @@ fetch("./data/papers.json")
   .catch(() => { $("#app").innerHTML = "<p class='empty'>题库加载失败，请用 python server.py 启动后再打开。</p>"; });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=5").catch(() => {});
 }
